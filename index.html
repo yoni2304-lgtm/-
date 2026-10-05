@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1E88E5">
+<title>נפגשים</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #F5F7FA;
+  --bg-white: #FFFFFF;
+  --card: #FFFFFF;
+  --card-hover: #F0F4F8;
+  --primary: #1E88E5;
+  --primary-dark: #1565C0;
+  --primary-light: #E3F2FD;
+  --orange: #FF9800;
+  --orange-light: #FFF3E0;
+  --green: #4CAF50;
+  --green-light: #E8F5E9;
+  --teal: #26A69A;
+  --teal-light: #E0F2F1;
+  --slate: #546E7A;
+  --slate-light: #ECEFF1;
+  --purple: #7E57C2;
+  --purple-light: #EDE7F6;
+  --red: #EF5350;
+  --red-light: #FFEBEE;
+  --text: #1A2332;
+  --text-muted: #6B7A90;
+  --border: #E4E9F0;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+}
+body { font-family: -apple-system, "Segoe UI", "Heebo", Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow: hidden; direction: rtl; }
+
+#splash { position: fixed; inset: 0; z-index: 1000; background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.6s ease; }
+#splash.hidden { opacity: 0; pointer-events: none; }
+.splash-logo { margin-bottom: 24px; }
+.logo-icon { width: 100px; height: 100px; border-radius: 28px; background: white; display: flex; align-items: center; justify-content: center; font-size: 48px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+.splash-title { font-size: 38px; font-weight: 800; color: white; letter-spacing: 1px; }
+.splash-sub { color: rgba(255,255,255,0.85); font-size: 15px; margin-top: 10px; }
+.splash-loading { margin-top: 40px; width: 120px; height: 3px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
+.splash-loading::after { content: ''; display: block; height: 100%; width: 40%; background: white; animation: loadingBar 1.5s ease-in-out infinite; }
+@keyframes loadingBar { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+
+#register { position: fixed; inset: 0; z-index: 900; background: var(--bg); display: none; flex-direction: column; padding: 30px 24px; overflow-y: auto; }
+#register.show { display: flex; }
+.register-logo { display: flex; justify-content: center; margin: 30px 0 20px; }
+.register-logo .logo-icon { width: 80px; height: 80px; border-radius: 22px; font-size: 38px; box-shadow: 0 8px 24px rgba(30,136,229,0.3); }
+.register-title { font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 8px; color: var(--text); }
+.register-sub { text-align: center; color: var(--text-muted); font-size: 14px; margin-bottom: 36px; line-height: 1.6; }
+.photo-upload { display: flex; flex-direction: column; align-items: center; margin: 8px 0 28px; }
+.photo-circle { width: 96px; height: 96px; border-radius: 50%; background: var(--bg-white); border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; font-size: 32px; color: var(--text-muted); cursor: pointer; transition: all 0.2s; overflow: hidden; background-size: cover; background-position: center; }
+.photo-circle:hover { border-color: var(--primary); background-color: var(--primary-light); }
+.photo-circle.has-photo { border-style: solid; border-color: var(--primary); }
+.photo-hint { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+.field { margin-bottom: 18px; }
+.field label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; }
+.field input { width: 100%; padding: 16px; border-radius: 14px; background: var(--bg-white); border: 1px solid var(--border); color: var(--text); font-size: 16px; font-family: inherit; }
+.field input:focus { outline: none; border-color: var(--primary); }
+.field input::placeholder { color: var(--text-muted); }
+.btn-primary { width: 100%; padding: 18px; border-radius: 14px; border: none; background: var(--primary); color: white; font-size: 16px; font-weight: 800; cursor: pointer; font-family: inherit; box-shadow: 0 8px 24px rgba(30,136,229,0.3); transition: transform 0.2s; }
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+#app { display: none; position: relative; height: 100vh; overflow: hidden; background: var(--bg); }
+#app.show { display: block; }
+
+.top-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 500; padding: 14px 16px; padding-top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; justify-content: space-between; background: linear-gradient(to bottom, #1E88E5, #1565C0); box-shadow: 0 2px 12px rgba(30,136,229,0.3); }
+.app-logo-small { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: white; }
+.logo-dot { width: 10px; height: 10px; border-radius: 3px; background: white; }
+.sidebar-toggle { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+#map { position: absolute; inset: 0; z-index: 1; background: #E8EEF4; }
+.leaflet-container { background: #E8EEF4 !important; }
+.leaflet-control-attribution { display: none !important; }
+
+.fab { position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%); z-index: 500; width: 80px; height: 80px; border-radius: 24px; background: var(--primary); border: 4px solid white; color: white; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 12px 32px rgba(30,136,229,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; transition: transform 0.2s; }
+.fab:active { transform: translateX(-50%) scale(0.92); }
+.fab .fab-emoji { font-size: 26px; line-height: 1; }
+
+.bottom-sheet { position: absolute; bottom: 0; left: 0; right: 0; z-index: 700; background: var(--bg-white); border-radius: 28px 28px 0 0; box-shadow: 0 -8px 32px rgba(0,0,0,0.15); transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1); padding-bottom: max(20px, env(safe-area-inset-bottom)); max-height: 80vh; overflow-y: auto; }
+.bottom-sheet.show { transform: translateY(0); }
+.bottom-sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 12px auto 8px; }
+.bottom-sheet-title { font-size: 18px; font-weight: 800; text-align: center; margin-bottom: 20px; color: var(--text); }
+.sheet-close { position: absolute; top: 12px; left: 16px; width: 36px; height: 36px; border-radius: 50%; background: var(--bg); border: none; font-size: 16px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
+
+#placeSheet { max-height: 45vh; }
+#typeSheet { min-height: 40vh; }
+
+.meetup-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 0 20px 20px; }
+.meetup-type { display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; opacity: 0; transform: scale(0.3) translateY(20px); transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.meetup-type.show { opacity: 1; transform: scale(1) translateY(0); }
+.meetup-type:active .meetup-type-icon { transform: scale(0.9); }
+.meetup-type-icon { width: 68px; height: 68px; border-radius: 22px; display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); transition: transform 0.2s; }
+.meetup-type-label { font-size: 12px; font-weight: 600; color: var(--text); text-align: center; }
+
+.step-content { padding: 0 20px 20px; }
+.step-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--text); text-align: center; }
+.step-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; text-align: center; }
+.step-icon { font-size: 40px; text-align: center; margin-bottom: 12px; }
+.input-field { width: 100%; padding: 14px; border-radius: 14px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-size: 15px; font-family: inherit; margin-bottom: 12px; }
+.input-field:focus { outline: none; border-color: var(--primary); }
+.input-field::placeholder { color: var(--text-muted); }
+.time-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.time-btn { padding: 16px; border-radius: 14px; border: 2px solid var(--border); background: var(--bg-white); color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.time-btn:active { transform: scale(0.96); }
+.time-btn.selected { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+.step-actions { display: flex; gap: 10px; margin-top: 16px; }
+.btn-next { flex: 1; padding: 16px; border-radius: 14px; border: none; background: var(--primary); color: white; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.btn-next:active { transform: scale(0.97); }
+.btn-back { padding: 16px 24px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-white); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; }
+
+.privacy-options { display: flex; gap: 10px; margin-bottom: 14px; }
+.privacy-btn { flex: 1; padding: 14px; border-radius: 14px; border: 2px solid var(--border); background: var(--bg-white); color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: center; }
+.privacy-btn.selected { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+.privacy-btn:active { transform: scale(0.96); }
+
+.people-grid-select { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.person-select-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 6px; background: var(--card); border-radius: 18px; border: 2px solid var(--border); cursor: pointer; transition: all 0.2s; }
+.person-select-card.selected { border-color: var(--primary); background: var(--primary-light); }
+.person-select-avatar { width: 50px; height: 50px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: white; overflow: hidden; background-size: cover; background-position: center; }
+.person-select-name { font-size: 11px; font-weight: 600; color: var(--text); text-align: center; }
+.person-check { font-size: 16px; color: var(--primary); display: none; }
+.person-select-card.selected .person-check { display: block; }
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 650;
+  background: var(--bg-white);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 70px;
+  padding: 0;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.nav-item { background: none; border: none; cursor: pointer; padding: 8px 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--text-muted); font-size: 10px; font-weight: 600; font-family: inherit; transition: color 0.2s; height: 100%; }
+.nav-item.active { color: var(--primary); }
+.nav-item svg { width: 22px; height: 22px; flex-shrink: 0; }
+
+.screen { position: fixed; inset: 0; z-index: 850; background: var(--bg); padding: 80px 20px 100px; overflow-y: auto; transform: translateX(100%); transition: transform 0.3s ease; }
+.screen.show { transform: translateX(0); }
+.screen-header { position: fixed; top: 0; left: 0; right: 0; z-index: 860; padding: 14px 16px; padding-top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 12px; background: linear-gradient(to bottom, #1E88E5, #1565C0); box-shadow: 0 2px 12px rgba(30,136,229,0.3); }
+.screen-back { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.screen-title-header { font-size: 18px; font-weight: 700; color: white; }
+.screen-content { padding-top: 20px; }
+
+.settings-item { display: flex; align-items: center; gap: 14px; padding: 18px 20px; background: var(--card); border-radius: 16px; margin-bottom: 10px; cursor: pointer; border: 1px solid var(--border); }
+.settings-item:active { background: var(--card-hover); }
+.settings-item-icon { width: 44px; height: 44px; border-radius: 14px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.settings-item-text { flex: 1; }
+.settings-item-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.settings-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.settings-item-arrow { color: var(--text-muted); font-size: 18px; }
+
+.about-card { background: var(--card); border-radius: 20px; padding: 30px 24px; text-align: center; border: 1px solid var(--border); }
+.about-logo { width: 80px; height: 80px; border-radius: 24px; background: linear-gradient(135deg, #1E88E5, #1565C0); display: flex; align-items: center; justify-content: center; font-size: 40px; margin: 0 auto 16px; box-shadow: 0 8px 24px rgba(30,136,229,0.3); }
+.about-title { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+.about-version { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+.about-text { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px; }
+.about-footer { font-size: 12px; color: var(--text-muted); padding-top: 20px; border-top: 1px solid var(--border); }
+
+.friends-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.friend-card { background: var(--card); border-radius: 18px; padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 10px; border: 1px solid var(--border); box-shadow: var(--shadow); cursor: pointer; }
+.friend-card:active { transform: scale(0.96); }
+.friend-avatar { width: 60px; height: 60px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: white; overflow: hidden; background-size: cover; background-position: center; position: relative; }
+.friend-status { position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--card); background: var(--green); }
+.friend-name { font-size: 12px; font-weight: 600; color: var(--text); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.profile-hero { display: flex; flex-direction: column; align-items: center; padding: 20px 0; }
+.profile-avatar-big { width: 110px; height: 110px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 44px; font-weight: 800; color: white; overflow: hidden; margin-bottom: 16px; box-shadow: 0 8px 32px rgba(30,136,229,0.3); background-size: cover; background-position: center; cursor: pointer; }
+.profile-name-big { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+.profile-status-big { font-size: 14px; color: var(--text-muted); }
+
+.meetup-item { background: var(--card); border-radius: 18px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.meetup-item-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.meetup-item-icon { width: 50px; height: 50px; border-radius: 14px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+.meetup-item-info { flex: 1; }
+.meetup-item-place { font-weight: 800; font-size: 15px; color: var(--text); }
+.meetup-item-time { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.meetup-item-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.meetup-item-count { font-size: 12px; color: var(--text-muted); flex: 1; }
+.meetup-item-btn { background: var(--primary); border: none; color: white; padding: 8px 14px; border-radius: 10px; font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; }
+.meetup-item-btn.join { background: var(--green); }
+.meetup-item-btn.delete { background: var(--red-light); color: var(--red); }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+.empty-state-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.5; }
+
+.sidebar-bg { position: fixed; inset: 0; z-index: 800; background: rgba(0,0,0,0.5); display: none; opacity: 0; transition: opacity 0.3s; }
+.sidebar-bg.show { display: block; opacity: 1; }
+.sidebar { position: fixed; top: 0; right: 0; bottom: 0; z-index: 900; width: 280px; max-width: 80vw; background: var(--bg-white); box-shadow: -8px 0 32px rgba(0,0,0,0.15); transform: translateX(100%); transition: transform 0.3s ease; display: flex; flex-direction: column; padding-top: max(20px, env(safe-area-inset-top)); }
+.sidebar.show { transform: translateX(0); }
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 0 20px 20px; border-bottom: 1px solid var(--border); }
+.sidebar-title { font-size: 18px; font-weight: 800; color: var(--primary); }
+.sidebar-close { width: 36px; height: 36px; border-radius: 10px; background: var(--bg); border: none; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.sidebar-content { flex: 1; overflow-y: auto; padding: 12px 0; }
+.sidebar-item { display: flex; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; color: var(--text); font-size: 15px; font-weight: 600; transition: background 0.2s; border: none; background: none; width: 100%; font-family: inherit; text-align: right; }
+.sidebar-item:active { background: var(--bg); }
+.sidebar-item-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.sidebar-item.parking-active .sidebar-item-icon { background: var(--warning); color: #0a1628; }
+.sidebar-item.parking-active { color: var(--warning); }
+.parking-timer-sidebar { font-size: 12px; font-weight: 800; color: var(--warning); margin-top: 2px; }
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); text-align: center; }
+
+.toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--text); color: white; padding: 14px 24px; border-radius: 14px; font-size: 14px; font-weight: 600; z-index: 2000; opacity: 0; transition: all 0.3s ease; pointer-events: none; box-shadow: var(--shadow-lg); max-width: 90vw; text-align: center; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.photo-picker { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; }
+.photo-picker.show { display: flex; }
+.photo-picker-content { background: var(--bg-white); border-radius: 24px; padding: 24px; width: 90%; max-width: 400px; }
+.photo-picker-title { font-size: 17px; font-weight: 800; margin-bottom: 18px; text-align: center; color: var(--text); }
+.photo-picker-options { display: flex; flex-direction: column; gap: 10px; }
+.photo-picker-btn { padding: 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 12px; }
+.photo-picker-btn:active { background: var(--card-hover); }
+.photo-picker-cancel { padding: 16px; border-radius: 14px; border: none; background: transparent; color: var(--text-muted); font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; margin-top: 6px; }
+#fileInput { display: none; }
+
+.arrival-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); z-index: 1500; width: 320px; max-width: calc(100vw - 40px); background: linear-gradient(135deg, #1e293b, #0f172a); border: 2px solid #00e5a0; border-radius: 24px; padding: 24px; box-shadow: 0 16px 48px rgba(0,229,160,0.4); opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); direction: rtl; text-align: center; }
+.arrival-popup.show { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+.arrival-popup-icon { font-size: 48px; margin-bottom: 12px; }
+.arrival-popup-title { font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 8px; }
+.arrival-popup-sub { font-size: 14px; color: #94a3b8; line-height: 1.5; margin-bottom: 20px; }
+.arrival-popup-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.arrival-popup-btn { flex: 1; min-width: 110px; height: 48px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.arrival-popup-btn.primary { background: linear-gradient(135deg, #00e5a0, #00a0ff); color: #0a1628; }
+.arrival-popup-btn.secondary { background: rgba(255,255,255,0.1); color: #ffffff; border: 1px solid rgba(255,255,255,0.15); }
+.arrival-popup-btn.close { flex: 0 0 auto; min-width: 48px; width: 48px; background: rgba(255,59,92,0.15); color: #ff3b5c; font-size: 20px; padding: 0; }
+
+.parking-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); z-index: 1600; width: 340px; max-width: calc(100vw - 40px); background: linear-gradient(135deg, #1e293b, #0f172a); border: 2px solid #ffb020; border-radius: 24px; padding: 24px; box-shadow: 0 16px 48px rgba(255,176,32,0.4); opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); direction: rtl; }
+.parking-popup.show { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+.parking-popup-icon { font-size: 40px; text-align: center; margin-bottom: 8px; }
+.parking-popup-title { font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 6px; text-align: center; }
+.parking-popup-sub { font-size: 13px; color: #94a3b8; line-height: 1.5; margin-bottom: 16px; text-align: center; }
+.parking-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.parking-btn { padding: 16px 8px; border-radius: 14px; border: 2px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #ffffff; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.parking-btn:active { transform: scale(0.95); }
+.parking-btn.selected { border-color: #ffb020; background: rgba(255,176,32,0.2); color: #ffb020; }
+.parking-popup-actions { display: flex; gap: 8px; }
+.parking-popup-btn { flex: 1; height: 48px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.parking-popup-btn.confirm { background: linear-gradient(135deg, #ffb020, #ff8f00); color: #0a1628; }
+.parking-popup-btn.cancel { background: rgba(255,255,255,0.1); color: #ffffff; border: 1px solid rgba(255,255,255,0.15); }
+
+.organizer-category { background: var(--card); border-radius: 16px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+.organizer-category-title { font-size: 16px; font-weight: 800; margin-bottom: 12px; color: var(--text); }
+.organizer-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg); border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+.organizer-item:active { transform: scale(0.98); }
+.organizer-item.done { opacity: 0.5; }
+.organizer-item.done .organizer-item-text { text-decoration: line-through; }
+.organizer-check { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; background: var(--bg-white); }
+.organizer-item.done .organizer-check { background: var(--green); border-color: var(--green); color: white; }
+.organizer-item-text { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+.organizer-add-btn { width: 100%; padding: 14px; border-radius: 12px; border: 2px dashed var(--border); background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.organizer-add-btn:active { background: var(--bg); }
+
+.friend-detail { background: var(--card); border-radius: 20px; padding: 24px; border: 1px solid var(--border); margin-bottom: 16px; text-align: center; }
+.friend-detail-avatar { width: 100px; height: 100px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 40px; color: white; margin: 0 auto 16px; overflow: hidden; background-size: cover; background-position: center; }
+.friend-detail-name { font-size: 22px; font-weight: 800; margin-bottom: 20px; }
+.friend-detail-field { text-align: right; margin-bottom: 16px; }
+.friend-detail-label { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
+.friend-detail-input { width: 100%; padding: 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-size: 15px; font-family: inherit; }
+.friend-detail-input:focus { outline: none; border-color: var(--primary); }
+.friend-detail-save { width: 100%; padding: 16px; border-radius: 14px; border: none; background: var(--primary); color: white; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 8px; }
+.friend-detail-delete { width: 100%; padding: 14px; border-radius: 14px; border: none; background: var(--red-light); color: var(--red); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 10px; }
+
+.search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
+.search-input { flex: 1; padding: 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 15px; font-family: inherit; }
+.search-input:focus { outline: none; border-color: var(--primary); }
+
+.filter-tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+.filter-tab { padding: 10px 16px; border-radius: 20px; border: 1px solid var(--border); background: var(--card); color: var(--text-muted); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; transition: all 0.2s; }
+.filter-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+.place-popup { font-family: system-ui; direction: rtl; text-align: right; min-width: 200px; }
+.place-popup-name { font-weight: 800; font-size: 15px; color: var(--text); margin-bottom: 4px; }
+.place-popup-type { font-size: 12px; color: var(--text-muted); }
+.place-popup-btn { margin-top: 10px; width: 100%; padding: 8px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.place-popup-attendees { margin-top: 10px; padding-top: 10px; border-top: 1px solid #E4E9F0; font-size: 12px; color: #6B7A90; }
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="splash-logo"><div class="logo-icon">👥</div></div>
+  <div class="splash-title">נפגשים</div>
+  <div class="splash-sub">כל המפגשים שלך במקום אחד</div>
+  <div class="splash-loading"></div>
+</div>
+
+<div id="register">
+  <div class="register-logo"><div class="logo-icon">👥</div></div>
+  <div class="register-title">ברוך הבא ל-נפגשים</div>
+  <div class="register-sub">הצטרף לקהילה שמתאמת מפגשים בקלות</div>
+  <div class="photo-upload">
+    <div class="photo-circle" id="photoCircle" onclick="openPhotoPicker()">📷</div>
+    <div class="photo-hint">הוסף תמונת פרופיל (אופציונלי)</div>
+  </div>
+  <div class="field">
+    <label>איך לקרוא לך?</label>
+    <input type="text" id="regName" placeholder="השם שלך" maxlength="20" />
+  </div>
+  <button class="btn-primary" id="regBtn" disabled>בואו נתחיל</button>
+</div>
+
+<div id="app">
+  <div id="map"></div>
+  
+  <div class="top-bar">
+    <div class="app-logo-small">
+      <div class="logo-dot"></div>
+      <span>נפגשים</span>
+    </div>
+    <button class="sidebar-toggle" id="sidebarToggle">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  
+  <button class="fab" id="fabBtn" onclick="openTypeSheet()">
+    <span class="fab-emoji">🎉</span>
+    <span>מפגש חדש</span>
+  </button>
+  
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-screen="map" onclick="goToMap()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+        <line x1="8" y1="2" x2="8" y2="18"/>
+        <line x1="16" y1="6" x2="16" y2="22"/>
+      </svg>
+      <span>מפה</span>
+    </button>
+    <button class="nav-item" data-screen="friends" onclick="openFriends()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <span>חברים</span>
+    </button>
+    <button class="nav-item" data-screen="myMeetups" onclick="openMyMeetups()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span>מפגשים</span>
+    </button>
+    <button class="nav-item" data-screen="profile" onclick="openProfile()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span>פרופיל</span>
+    </button>
+  </nav>
+  
+  <div class="bottom-sheet" id="typeSheet">
+    <button class="sheet-close" onclick="closeAllSheets()">✕</button>
+    <div class="bottom-sheet-handle"></div>
+    <div class="bottom-sheet-title">מה סוג המפגש?</div>
+    <div class="meetup-types" id="meetupTypes">
+      <div class="meetup-type" data-type="social" onclick="selectType('social')">
+        <div class="meetup-type-icon" style="background: var(--primary-light);">🎉</div>
+        <div class="meetup-type-label">מפגש חברתי</div>
+      </div>
+      <div class="meetup-type" data-type="event" onclick="selectType('event')">
+        <div class="meetup-type-icon" style="background: var(--orange-light);">🎂</div>
+        <div class="meetup-type-label">אירוע</div>
+      </div>
+      <div class="meetup-type" data-type="group" onclick="selectType('group')">
+        <div class="meetup-type-icon" style="background: var(--green-light);">👥</div>
+        <div class="meetup-type-label">קבוצה קבועה</div>
+      </div>
+      <div class="meetup-type" data-type="religious" onclick="selectType('religious')">
+        <div class="meetup-type-icon" style="background: var(--purple-light);">🙏</div>
+        <div class="meetup-type-label">אירוע דתי</div>
+      </div>
+      <div class="meetup-type" data-type="sport" onclick="selectType('sport')">
+        <div class="meetup-type-icon" style="background: var(--teal-light);">⚽</div>
+        <div class="meetup-type-label">ספורט</div>
+      </div>
+      <div class="meetup-type" data-type="food" onclick="selectType('food')">
+        <div class="meetup-type-icon" style="background: var(--orange-light);">🍽️</div>
+        <div class="meetup-type-label">אוכל</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bottom-sheet" id="placeSheet">
+    <button class="sheet-close" onclick="closeAllSheets()">✕</button>
+    <div class="bottom-sheet-handle"></div>
+    <div class="step-content">
+      <div class="step-icon">📍</div>
+      <div class="step-title">איפה נפגשים?</div>
+      <div class="step-sub">לחץ על המפה לבחירת מקום</div>
+      <input type="text" class="input-field" id="placeName" placeholder="או הקלד שם מקום..." />
+      <div class="step-actions">
+        <button class="btn-back" onclick="openTypeSheet()">← חזור</button>
+        <button class="btn-next" onclick="goToTime()">המשך →</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bottom-sheet" id="timeSheet">
+    <button class="sheet-close" onclick="closeAllSheets()">✕</button>
+    <div class="bottom-sheet-handle"></div>
+    <div class="step-content">
+      <div class="step-icon">🕐</div>
+      <div class="step-title">מתי נפגשים?</div>
+      <div class="step-sub">בחר זמן מהאפשרויות</div>
+      <div class="time-options">
+        <button class="time-btn selected" onclick="selectTime(this, 'עכשיו')">עכשיו</button>
+        <button class="time-btn" onclick="selectTime(this, 'בעוד חצי שעה')">בעוד חצי שעה</button>
+        <button class="time-btn" onclick="selectTime(this, 'בעוד שעה')">בעוד שעה</button>
+        <button class="time-btn" onclick="selectTime(this, 'הערב')">הערב</button>
+        <button class="time-btn" onclick="selectTime(this, 'מחר בבוקר')">מחר בבוקר</button>
+        <button class="time-btn" onclick="selectTime(this, 'מחר בערב')">מחר בערב</button>
+      </div>
+      <div class="step-actions">
+        <button class="btn-back" onclick="openPlaceSheet()">← חזור</button>
+        <button class="btn-next" onclick="goToPrivacy()">המשך →</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bottom-sheet" id="privacySheet">
+    <button class="sheet-close" onclick="closeAllSheets()">✕</button>
+    <div class="bottom-sheet-handle"></div>
+    <div class="step-content">
+      <div class="step-icon">🔒</div>
+      <div class="step-title">מי יכול להצטרף?</div>
+      <div class="step-sub">בחר את סוג המפגש</div>
+      <div class="privacy-options">
+        <button class="privacy-btn selected" onclick="selectPrivacy(this, 'private')">🔒 פרטי<br><small>רק מוזמנים</small></button>
+        <button class="privacy-btn" onclick="selectPrivacy(this, 'public')">🌍 ציבורי<br><small>כולם מוזמנים</small></button>
+      </div>
+      <div class="step-actions">
+        <button class="btn-back" onclick="openTimeSheet()">← חזור</button>
+        <button class="btn-next" onclick="goToPeople()">המשך →</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bottom-sheet" id="peopleSheet">
+    <button class="sheet-close" onclick="closeAllSheets()">✕</button>
+    <div class="bottom-sheet-handle"></div>
+    <div class="step-content">
+      <div class="step-icon">👥</div>
+      <div class="step-title">מי מוזמן?</div>
+      <div class="step-sub">לחץ על האנשים שברצונך להזמין</div>
+      <div class="people-grid-select" id="peopleGridSelect"></div>
+      <div class="step-actions">
+        <button class="btn-back" onclick="openPrivacySheet()">← חזור</button>
+        <button class="btn-next" onclick="sendInvite()">שלח הזמנה 🎉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrival-popup" id="arrivalPopup">
+  <div class="arrival-popup-icon">🚗</div>
+  <div class="arrival-popup-title">הגעת ליעד?</div>
+  <div class="arrival-popup-sub">רוצה שנשמור את מיקום הרכב או נפעיל טיימר חנייה?</div>
+  <div class="arrival-popup-actions">
+    <button class="arrival-popup-btn primary" onclick="bubbleAction('park')">📍 שמור מיקום</button>
+    <button class="arrival-popup-btn secondary" onclick="bubbleAction('timer')">⏰ הפעל טיימר</button>
+    <button class="arrival-popup-btn close" onclick="bubbleAction('close')">✕</button>
+  </div>
+</div>
+
+<div class="parking-popup" id="parkingPopup">
+  <div class="parking-popup-icon">⏰</div>
+  <div class="parking-popup-title">תזכורת חנייה</div>
+  <div class="parking-popup-sub">כמה זמן תחנה?</div>
+  <div class="parking-options" id="parkingOptions">
+    <button class="parking-btn" onclick="selectParkingTime(this, 15)">15 דקות</button>
+    <button class="parking-btn" onclick="selectParkingTime(this, 30)">30 דקות</button>
+    <button class="parking-btn" onclick="selectParkingTime(this, 45)">45 דקות</button>
+    <button class="parking-btn" onclick="selectParkingTime(this, 60)">60 דקות</button>
+    <button class="parking-btn" onclick="selectParkingTime(this, 90)">90 דקות</button>
+    <button class="parking-btn" onclick="selectParkingTime(this, 120)">120 דקות</button>
+  </div>
+  <div class="parking-popup-actions">
+    <button class="parking-popup-btn confirm" onclick="confirmParkingTime()">אישור</button>
+    <button class="parking-popup-btn cancel" onclick="closeParkingPopup()">ביטול</button>
+  </div>
+</div>
+
+<div class="screen" id="friendsScreen">
+  <div class="screen-header">
+    <button class="screen-back" onclick="closeFriends()">←</button>
+    <div class="screen-title-header">חברים</div>
+  </div>
+  <div class="screen-content">
+    <div class="search-bar">
+      <input type="text" class="search-input" id="friendsSearch" placeholder="חפש חבר..." oninput="renderFriends()" />
+      <button class="meetup-item-btn join" onclick="openAddFriend()" style="padding: 0 16px; font-size: 18px;">+</button>
+    </div>
+    <div class="friends-grid" id="friendsGrid"></div>
+  </div>
+</div>
+
+<div class="screen" id="friendDetailScreen">
+  <div class="screen-header">
+    <button class="screen-back" onclick="closeFriendDetail()">←</button>
+    <div class="screen-title-header">פרטי חבר</div>
+  </div>
+  <div class="screen-content">
+    <div class="friend-detail">
+      <div class="friend-detail-avatar" id="friendDetailAvatar">?</div>
+      <div class="friend-detail-name" id="friendDetailName">חבר</div>
+    </div>
+    <div class="friend-detail-field">
+      <label class="friend-detail-label">🎂 יום הולדת</label>
+      <input type="date" class="friend-detail-input" id="friendBirthday" />
+    </div>
+    <div class="friend-detail-field">
+      <label class="friend-detail-label">💍 יום נישואין</label>
+      <input type="date" class="friend-detail-input" id="friendAnniversary" />
+    </div>
+    <div class="friend-detail-field">
+      <label class="friend-detail-label">📝 הערות</label>
+      <input type="text" class="friend-detail-input" id="friendNotes" placeholder="משהו לזכור..." />
+    </div>
+    <button class="friend-detail-save" onclick="saveFriendDetails()">שמור פרטים</button>
+    <button class="friend-detail-delete" onclick="deleteFriend()">🗑️ מחק חבר</button>
+  </div>
+</div>
+
+<div class="screen" id="myMeetupsScreen">
+  <div class="screen-header">
+    <button class="screen-back" onclick="closeMyMeetups()">←</button>
+    <div class="screen-title-header">המפגשים שלי</div>
+    <button onclick="clearAllMeetups()" style="margin-right:auto;background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ נקה הכל</button>
+  </div>
+  <div class="screen-content">
+    <div class="search-bar">
+      <input type="text" class="search-input" id="meetupsSearch" placeholder="חפש מפגש..." oninput="renderMyMeetupsList()" />
+    </div>
+    <div class="filter-tabs" id="filterTabs">
+      <button class="filter-tab active" onclick="setFilter(this, 'all')">הכל</button>
+      <button class="filter-tab" onclick="setFilter(this, 'active')">פעילים</button>
+      <button class="filter-tab" onclick="setFilter(this, 'hosting')">שאני מארגן</button>
+      <button class="filter-tab" onclick="setFilter(this, 'attending')">שאני מוזמן</button>
+    </div>
+    <div id="myMeetupsList"></div>
+  </div>
+</div>
+
+<div class="screen" id="profileScreen">
+  <div class="screen-header">
+    <button class="screen-back" onclick="closeProfile()">←</button>
+    <div class="screen-title-header">הפרופיל שלי</div>
+  </div>
+  <div class="screen-content">
+    <div class="profile-hero">
+      <div class="profile-avatar-big" id="profileAvatarBig" onclick="openPhotoPicker()">?</div>
+      <div class="profile-name-big" id="profileNameBig">אורח</div>
+      <div class="profile-status-big">🟢 פנוי</div>
+    </div>
+    <button class="btn-primary" style="margin-top:20px;" onclick="openTypeSheet()">🎉 הזמן חברים למפגש</button>
+  </div>
+</div>
+
+<div class="screen" id="organizerScreen">
+  <div class="screen-header">
+    <button class="screen-back" onclick="closeOrganizer()">←</button>
+    <div class="screen-title-header">🎒 המארגן</div>
+  </div>
+  <div class="screen-content">
+    <div id="organizerContent"></div>
+    <button class="organizer-add-btn" onclick="addOrganizerItem()">+ הוסף פריט</button>
+  </div>
+</div>
+
+<div class="sidebar-bg" id="sidebarBg" onclick="closeSidebar()"></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-title">נפגשים</div>
+    <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <div class="sidebar-content">
+    <button class="sidebar-item" onclick="openOrganizer()">
+      <div class="sidebar-item-icon">🎒</div>
+      <span>המארגן</span>
+    </button>
+    <button class="sidebar-item" onclick="parkHere()">
+      <div class="sidebar-item-icon">📍</div>
+      <span>חניתי כאן</span>
+    </button>
+    <button class="sidebar-item" onclick="findMyCar()">
+      <div class="sidebar-item-icon">🚗</div>
+      <span>מצא את הרכב שלי</span>
+    </button>
+    <button class="sidebar-item sidebar-item-parking" id="sidebarParkingBtn" onclick="openParkingPopup()">
+      <div class="sidebar-item-icon">⏰</div>
+      <div style="flex:1;">
+        <div>תזכורת חנייה</div>
+        <div class="parking-timer-sidebar" id="sidebarParkingTimer" style="display:none;"></div>
+      </div>
+    </button>
+    <button class="sidebar-item" onclick="openSettings()">
+      <div class="sidebar-item-icon">⚙️</div>
+      <span>הגדרות</span>
+    </button>
+    <button class="sidebar-item" onclick="shareApp()">
+      <div class="sidebar-item-icon">📤</div>
+      <span>שתף עם חברים</span>
+    </button>
+    <button class="sidebar-item" onclick="openAbout()">
+      <div class="sidebar-item-icon">ℹ️</div>
+      <span>אודות</span>
+    </button>
+  </div>
+  <div class="sidebar-footer">
+    <span style="font-size:11px;">Built by</span><br>
+    <span style="font-size:11px;">Y.A & D</span>
+    <hr style="border:none; border-top:1px solid var(--border); margin:8px 0;">
+    נפגשים © 2026
+  </div>
+</div>
+
+<div class="screen" id="settingsScreen">
+  <div class="screen-header">
+    <button class="screen-back" onclick="closeSettings()">←</button>
+    <div class="screen-title-header">הגדרות</div>
+  </div>
+  <div class="screen-content">
+    <div class="settings-item" onclick="editName()">
+      <div class="settings-item-icon">✏️</div>
+      <div class="settings-item-text">
+        <div class="settings-item-title">שנה שם</div>
+        <div class="settings-item-sub" id="currentName">-</div>
+      </div>
+      <div class="settings-item-arrow">‹</div>
+    </div>
+    <div class="settings-item" onclick="openPhotoPicker()">
+      <div class="settings-item-icon">📷</div>
+      <div class="settings-item-text">
+        <div class="settings-item-title">שנה תמונת פרופיל</div>
+        <div class="settings-item-sub">תמונה חדשה</div>
+      </div>
+      <div class="settings-item-arrow">‹</div>
+    </div>
+    <div class="settings-item" onclick="toggleSound()">
+      <div class="settings-item-icon">🔊</div>
+      <div class="settings-item-text">
+        <div class="settings-item-title">צליל התראות</div>
+        <div class="settings-item-sub" id="soundStatus">פעיל</div>
+      </div>
+      <div class="settings-item-arrow">‹</div>
+    </div>
+    <div class="settings-item" onclick="clearData()">
+      <div class="settings-item-icon" style="background: var(--red-light);">🗑️</div>
+      <div class="settings-item-text">
+        <div class="settings-item-title" style="color: var(--red);">מחק את כל הנתונים</div>
+        <div class="settings-item-sub">פעולה בלתי הפיכה</div>
+      </div>
+      <div class="settings-item-arrow">‹</div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="aboutScreen">
+  <div class="screen-header">
+    <button class="screen-back" onclick="closeAbout()">←</button>
+    <div class="screen-title-header">אודות</div>
+  </div>
+  <div class="screen-content">
+    <div class="about-card">
+      <div class="about-logo">👥</div>
+      <div class="about-title">נפגשים</div>
+      <div class="about-version">גרסה 3.1.0 (Supabase)</div>
+      <div class="about-text">
+        כלי לתיאום מפגשים חברתיים, אירועים וקבוצות.<br><br>
+        בוחרים מקום על המפה, קובעים זמן, ומזמינים חברים — בלחיצה אחת.<br><br>
+        🌐 מסונכרן בענן בין כל המכשירים.
+      </div>
+      <div class="about-footer">
+        Built by Y.A & D<br>
+        נפגשים © 2026
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="photo-picker" id="photoPicker">
+  <div class="photo-picker-content">
+    <div class="photo-picker-title">בחר תמונת פרופיל</div>
+    <div class="photo-picker-options">
+      <button class="photo-picker-btn" onclick="pickPhoto('camera')">📷 צלם תמונה</button>
+      <button class="photo-picker-btn" onclick="pickPhoto('gallery')">🖼️ בחר מהגלריה</button>
+      <button class="photo-picker-cancel" onclick="closePhotoPicker()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" capture="user" />
+
+<div class="toast" id="toast">נשמר!</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// =====================================================
+// SUPABASE CONFIG
+// =====================================================
+const SUPABASE_URL = 'https://amxlvofcwlmqdhrpqauu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFteGx2b2Zjd2xtcWRocnBxYWF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyMjQ0MzAsImV4cCI6MjA3NTgwMDQzMH0.gVrt6IalHk0zT44FxX9kofexKWYR_TbLAVcbKP-NwMA';
+let sb = null;
+try {
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  console.log('✅ Supabase connected');
+} catch(e) {
+  console.error('❌ SB init error:', e);
+}
+
+// =====================================================
+// STATE
+// =====================================================
+let map = null;
+let user = null;
+let userPhoto = null;
+let placeLayer = null;
+let selectedPlace = null;
+let selectedTime = 'עכשיו';
+let selectedPeople = [];
+let selectedType = null;
+let selectedPrivacy = 'private';
+let meetups = [];
+let meetupMarkers = {};
+let userMarker = null;
+let carMarker = null;
+let soundEnabled = true;
+let cleanupInterval = null;
+let selectedParkingTime = null;
+let friends = [];
+let currentFriendId = null;
+let organizerItems = [];
+let meetupFilter = 'all';
+let realtimeChannel = null;
+
+const STORAGE_KEY = 'nifgashim_user';
+const SOUND_KEY = 'nifgashim_sound';
+const CAR_KEY = 'nifgashim_car';
+const PARKING_KEY = 'nifgashim_parking';
+const ORGANIZER_KEY = 'nifgashim_organizer';
+const ASHDOD_CENTER = [31.8014, 34.6435];
+const ISRAEL_BOUNDS = L.latLngBounds([29.45, 34.27], [33.34, 35.90]);
+
+const EXPIRY_TIMES = {
+  'עכשיו': 2 * 60 * 60 * 1000,
+  'בעוד חצי שעה': 2.5 * 60 * 60 * 1000,
+  'בעוד שעה': 3 * 60 * 60 * 1000,
+  'הערב': 6 * 60 * 60 * 1000,
+  'מחר בבוקר': 24 * 60 * 60 * 1000,
+  'מחר בערב': 24 * 60 * 60 * 1000
+};
+
+const SAMPLE_PEOPLE = [
+  { name: 'דני', emoji: '👨' },
+  { name: 'שרה', emoji: '👩' },
+  { name: 'יוסי', emoji: '🧔' },
+  { name: 'מיכל', emoji: '👩‍🦰' },
+  { name: 'אבי', emoji: '👨‍🦱' },
+  { name: 'נועה', emoji: '👩‍🦱' },
+  { name: 'רון', emoji: '👱' },
+  { name: 'תמר', emoji: '👩‍🦳' },
+  { name: 'עידן', emoji: '🧑' }
+];
+
+const ORGANIZER_CATEGORIES = {
+  'event': { title: '🎂 אירוע (יום הולדת)', items: ['🎁 מתנה', '🎂 עוגה', '💐 פרחים', '📸 מצלמה'] },
+  'food': { title: '🍽️ אוכל (ארוחת ערב)', items: ['🍷 יין', '🥗 סלט', '🍰 קינוח', '🍞 לחם'] },
+  'social': { title: '🎉 מפגש חברתי (בית קפה)', items: ['💰 כסף', '📱 מטען', '🔑 מפתחות'] },
+  'religious': { title: '🙏 אירוע דתי', items: ['📖 סידור', '👔 בגדים מתאימים', '🕯️ נרות'] },
+  'sport': { title: '⚽ ספורט', items: ['👟 נעלי ספורט', '💧 בקבוק מים', '🧢 כובע'] },
+  'group': { title: '👥 קבוצה קבועה', items: ['📅 לוח זמנים', '📝 פתקים'] }
+};
+
+const $ = id => document.getElementById(id);
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function playLoudNotification() {
+  if (!soundEnabled) return;
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'square';
+        osc.frequency.value = 1000;
+        gain.gain.value = 1.0;
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      }, i * 400);
+    }
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+  } catch (e) { console.log('Audio error:', e); }
+}
+
+// =====================================================
+// USER (localStorage + Supabase sync)
+// =====================================================
+function loadUser() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      user = JSON.parse(saved);
+      userPhoto = user.photo || null;
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+function saveUser() {
+  if (!user) return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+}
+
+async function syncProfileToCloud() {
+  if (!sb || !user) return;
+  try {
+    const { error } = await sb.from('profiles').upsert({
+      id: user.id,
+      name: user.name,
+      photo: user.photo || null
+    });
+    if (error) console.error('Profile sync error:', JSON.stringify(error));
+  } catch (e) { console.error(e); }
+}
+
+// =====================================================
+// FRIENDS (Supabase)
+// =====================================================
+async function loadFriends() {
+  if (!sb || !user) { friends = []; return; }
+  try {
+    const { data, error } = await sb
+      .from('friends')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
+    if (error) { console.error('Load friends error:', error); friends = []; return; }
+    if (data && data.length > 0) {
+      friends = data.map(f => ({
+        id: f.id,
+        name: f.name,
+        emoji: f.emoji || '👤',
+        photo: f.photo,
+        birthday: f.birthday || '',
+        anniversary: f.anniversary || '',
+        notes: f.notes || ''
+      }));
+    } else {
+      friends = [];
+      for (const p of SAMPLE_PEOPLE) {
+        const { data: ins } = await sb.from('friends').insert({
+          user_id: user.id, name: p.name, emoji: p.emoji
+        }).select().single();
+        if (ins) friends.push({
+          id: ins.id, name: ins.name, emoji: ins.emoji,
+          photo: null, birthday: '', anniversary: '', notes: ''
+        });
+      }
+    }
+  } catch (e) { console.error(e); friends = []; }
+}
+
+async function addFriendToCloud(name) {
+  if (!sb || !user) return null;
+  try {
+    const { data, error } = await sb.from('friends').insert({
+      user_id: user.id, name: name, emoji: '👤'
+    }).select().single();
+    if (error) { console.error(error); return null; }
+    return { id: data.id, name: data.name, emoji: data.emoji || '👤',
+             photo: null, birthday: '', anniversary: '', notes: '' };
+  } catch (e) { console.error(e); return null; }
+}
+
+async function updateFriendInCloud(friend) {
+  if (!sb) return;
+  try {
+    await sb.from('friends').update({
+      birthday: friend.birthday || null,
+      anniversary: friend.anniversary || null,
+      notes: friend.notes || null
+    }).eq('id', friend.id);
+  } catch (e) { console.error(e); }
+}
+
+async function deleteFriendFromCloud(id) {
+  if (!sb) return;
+  try {
+    await sb.from('friends').delete().eq('id', id);
+  } catch (e) { console.error(e); }
+}
+
+// =====================================================
+// MEETUPS (Supabase)
+// =====================================================
+async function loadMeetups() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb
+      .from('meetups')
+      .select('*, attendees(*)')
+      .order('created_at', { ascending: false });
+    if (error) { console.error('Load meetups error:', error); return; }
+    meetups = (data || []).map(m => ({
+      id: m.id,
+      place: { lat: m.place_lat, lng: m.place_lng, name: m.place_name },
+      time: m.time_label,
+      type: m.type,
+      privacy: m.privacy,
+      people: m.people_ids || [],
+      attendees: (m.attendees || []).map(a => ({ id: a.user_id, name: a.user_name })),
+      host: m.host_name,
+      hostId: m.host_id,
+      createdAt: new Date(m.created_at).getTime(),
+      expiresAt: m.expires_at ? new Date(m.expires_at).getTime() : null
+    }));
+  } catch (e) { console.error(e); }
+}
+
+async function saveMeetupToCloud(meetup) {
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.from('meetups').insert({
+      host_id: meetup.hostId,
+      host_name: meetup.host,
+      type: meetup.type,
+      privacy: meetup.privacy,
+      place_name: meetup.place.name,
+      place_lat: meetup.place.lat,
+      place_lng: meetup.place.lng,
+      time_label: meetup.time,
+      people_ids: meetup.people,
+      expires_at: meetup.expiresAt ? new Date(meetup.expiresAt).toISOString() : null
+    }).select().single();
+    if (error) { console.error('Save meetup error:', error); return null; }
+    return data.id;
+  } catch (e) { console.error(e); return null; }
+}
+
+async function deleteMeetupFromCloud(id) {
+  if (!sb) return;
+  try {
+    await sb.from('meetups').delete().eq('id', id);
+  } catch (e) { console.error(e); }
+}
+
+async function joinMeetupInCloud(meetupId, userId, userName) {
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from('attendees').insert({
+      meetup_id: meetupId, user_id: userId, user_name: userName
+    });
+    if (error) { console.error(error); return false; }
+    return true;
+  } catch (e) { console.error(e); return false; }
+}
+
+async function cancelJoinInCloud(meetupId, userId) {
+  if (!sb) return;
+  try {
+    await sb.from('attendees').delete()
+      .eq('meetup_id', meetupId).eq('user_id', userId);
+  } catch (e) { console.error(e); }
+}
+
+// =====================================================
+// REALTIME
+// =====================================================
+function subscribeRealtime() {
+  if (!sb) return;
+  try {
+    realtimeChannel = sb
+      .channel('nifgashim-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meetups' },
+        async () => { await loadMeetups(); renderMeetups(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendees' },
+        async () => { await loadMeetups(); renderMeetups(); })
+      .subscribe();
+    console.log('🔴 Realtime subscribed');
+  } catch (e) { console.error('Realtime error:', e); }
+}
+
+// =====================================================
+// LOCAL (organizer, sound)
+// =====================================================
+function loadOrganizer() {
+  try {
+    const saved = localStorage.getItem(ORGANIZER_KEY);
+    if (saved) organizerItems = JSON.parse(saved);
+  } catch (e) { organizerItems = []; }
+}
+function saveOrganizer() {
+  localStorage.setItem(ORGANIZER_KEY, JSON.stringify(organizerItems));
+}
+function loadSoundSettings() {
+  const saved = localStorage.getItem(SOUND_KEY);
+  if (saved !== null) soundEnabled = saved === 'true';
+}
+function saveSoundSettings() {
+  localStorage.setItem(SOUND_KEY, soundEnabled.toString());
+}
+
+// =====================================================
+// BOOT
+// =====================================================
+setTimeout(async () => {
+  setTimeout(async () => {
+    loadSoundSettings();
+    loadOrganizer();
+
+    if (loadUser()) {
+      startApp();
+syncProfileToCloud();
+loadFriends().then(() => renderFriends());
+loadMeetups().then(() => renderMeetups());
+    } else {
+      $('register').classList.add('show');
+    }
+  }, 600);
+}, 2800);
+setTimeout(() => { 
+  const sp = document.getElementById('splash');
+  if (sp && sp.style.display !== 'none') {
+    sp.style.display = 'none';
+    const app = document.getElementById('app');
+    if (app && !app.classList.contains('show')) {
+      app.classList.add('show');
+    }
+  }
+}, 5000);
+
+// =====================================================
+// REGISTER
+// =====================================================
+$('regName').addEventListener('input', (e) => {
+  $('regBtn').disabled = e.target.value.trim().length < 2;
+});
+
+$('regBtn').addEventListener('click', async () => {
+  const name = $('regName').value.trim();
+  if (name.length < 2) { toast('שם קצר מדי'); return; }
+  user = {
+    name: name,
+    photo: userPhoto,
+    joinedAt: Date.now(),
+    id: 'usr_' + Math.random().toString(36).substring(2, 12)
+  };
+  saveUser();
+  await syncProfileToCloud();
+  await loadFriends();
+  $('register').classList.remove('show');
+  startApp();
+});
+
+// =====================================================
+// PHOTO
+// =====================================================
+function openPhotoPicker() { $('photoPicker').classList.add('show'); }
+function closePhotoPicker() { $('photoPicker').classList.remove('show'); }
+function pickPhoto(source) {
+  closePhotoPicker();
+  const input = $('fileInput');
+  if (source === 'camera') input.setAttribute('capture', 'user');
+  else input.removeAttribute('capture');
+  input.click();
+}
+$('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 200;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const minDim = Math.min(img.width, img.height);
+      const sx = (img.width - minDim) / 2;
+      const sy = (img.height - minDim) / 2;
+      ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      userPhoto = dataUrl;
+      const circle = $('photoCircle');
+      if (circle) {
+        circle.style.backgroundImage = `url(${dataUrl})`;
+        circle.textContent = '';
+        circle.classList.add('has-photo');
+      }
+      if (user) {
+        user.photo = dataUrl;
+        saveUser();
+        syncProfileToCloud();
+      }
+      toast('תמונה נטענה בהצלחה');
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// =====================================================
+// APP START
+// =====================================================
+function startApp() {
+  $('app').classList.add('show');
+  $('splash').style.display = 'none';
+  initMap();
+  renderMeetups();
+  startCleanupInterval();
+  startReminderInterval();
+  startLocationTracking();
+  loadCarFromStorage();
+  updateParkingUI();
+  subscribeRealtime();
+}
+
+function startLocationTracking() {
+  if (!navigator.geolocation) { toast('הדפדפן לא תומך במיקום'); return; }
+  navigator.geolocation.watchPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      if (!userMarker) {
+        const icon = L.divIcon({ className: '',
+          html: '<div style="width:22px;height:22px;border-radius:50%;background:#1E88E5;border:3px solid white;box-shadow:0 0 16px rgba(30,136,229,0.8);"></div>',
+          iconSize: [22, 22], iconAnchor: [11, 11] });
+        userMarker = L.marker([lat, lng], { icon }).addTo(map);
+      } else {
+        userMarker.setLatLng([lat, lng]);
+      }
+    },
+    (err) => console.log('Location error:', err),
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+  );
+}
+
+function startCleanupInterval() {
+  if (cleanupInterval) clearInterval(cleanupInterval);
+  cleanupInterval = setInterval(cleanExpiredMeetups, 60 * 1000);
+  cleanExpiredMeetups();
+}
+
+function startReminderInterval() {
+  setInterval(checkReminders, 5 * 60 * 1000);
+  checkReminders();
+}
+
+function checkReminders() {
+  const now = Date.now();
+  meetups.forEach(meetup => {
+    if (meetup.expiresAt && !meetup.reminded) {
+      const timeLeft = meetup.expiresAt - now;
+      const thirtyMin = 30 * 60 * 1000;
+      if (timeLeft > 0 && timeLeft < thirtyMin) {
+        playLoudNotification();
+        toast(`⏰ "${meetup.place.name}" מתחיל בקרוב!`);
+        meetup.reminded = true;
+      }
+    }
+  });
+}
+
+function cleanExpiredMeetups() {
+  const now = Date.now();
+  let changed = false;
+  meetups.forEach(meetup => {
+    if (meetup.expiresAt && meetup.expiresAt < now) {
+      if (meetupMarkers[meetup.id]) {
+        if (map) map.removeLayer(meetupMarkers[meetup.id]);
+        delete meetupMarkers[meetup.id];
+        changed = true;
+      }
+    }
+  });
+  if (changed) renderMyMeetupsList();
+}
+
+// =====================================================
+// MAP
+// =====================================================
+function initMap() {
+  map = L.map('map', {
+    center: ASHDOD_CENTER,
+    zoom: 14,
+    zoomControl: false,
+    attributionControl: false,
+    maxBounds: ISRAEL_BOUNDS,
+    maxBoundsViscosity: 1.0,
+    minZoom: 8,
+    maxZoom: 19
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    bounds: ISRAEL_BOUNDS
+  }).addTo(map);
+
+ // loadPlaces();
+
+  let moveTimeout = null;
+  map.on('moveend', () => {
+    if (moveTimeout) clearTimeout(moveTimeout);
+    moveTimeout = setTimeout(() => loadPlaces(), 1000);
+  });
+
+  map.on('click', (e) => {
+    if ($('placeSheet').classList.contains('show')) {
+      selectedPlace = { lat: e.latlng.lat, lng: e.latlng.lng, name: '' };
+      const markerIcon = L.divIcon({
+        className: '',
+        html: '<div style="width:36px;height:36px;border-radius:50%;background:#1E88E5;display:flex;align-items:center;justify-content:center;font-size:20px;border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,0.3);">📍</div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+      });
+      if (window.tempMarker) map.removeLayer(window.tempMarker);
+      window.tempMarker = L.marker([e.latlng.lat, e.latlng.lng], { icon: markerIcon }).addTo(map);
+      toast('מקום נבחר!');
+    }
+  });
+}
+
+function loadPlaces() {
+  if (!map) return;
+  if (placeLayer) map.removeLayer(placeLayer);
+  placeLayer = L.layerGroup().addTo(map);
+
+  const bounds = map.getBounds();
+  const south = bounds.getSouth();
+  const west = bounds.getWest();
+  const north = bounds.getNorth();
+  const east = bounds.getEast();
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["amenity"="cafe"](${south},${west},${north},${east});
+      node["amenity"="restaurant"](${south},${west},${north},${east});
+      node["amenity"="fast_food"](${south},${west},${north},${east});
+      node["amenity"="bank"](${south},${west},${north},${east});
+      node["amenity"="fuel"](${south},${west},${north},${east});
+      node["amenity"="pharmacy"](${south},${west},${north},${east});
+      node["shop"="supermarket"](${south},${west},${north},${east});
+    );
+    out body;
+  `;
+
+  const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent('https://overpass-api.de/api/interpreter');
+
+  fetch(proxyUrl, {
+    method: 'POST',
+    body: 'data=' + encodeURIComponent(query)
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.elements) return;
+    data.elements.forEach(place => {
+      const tags = place.tags || {};
+      const name = tags.name || tags['name:he'] || '';
+      if (!name) return;
+      const type = tags.amenity || tags.shop || '';
+      const typeInfo = getPlaceTypeInfo(type);
+      if (!typeInfo) return;
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:28px;height:28px;border-radius:50%;background:${typeInfo.color};display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.2);">${typeInfo.emoji}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      const marker = L.marker([place.lat, place.lon], { icon });
+      marker.bindPopup(`
+        <div class="place-popup">
+          <div class="place-popup-name">${name}</div>
+          <div class="place-popup-type">${typeInfo.label}</div>
+          <button class="place-popup-btn" onclick="selectPlaceFromMap('${name.replace(/'/g, "\\'")}', ${place.lat}, ${place.lon})">בחר מקום זה</button>
+        </div>
+      `);
+      placeLayer.addLayer(marker);
+    });
+  })
+  .catch(err => console.log('Places load error:', err));
+}
+
+function getPlaceTypeInfo(type) {
+  const map = {
+    'cafe': { emoji: '☕', label: 'בית קפה', color: '#1E88E5' },
+    'restaurant': { emoji: '🍽️', label: 'מסעדה', color: '#FF9800' },
+    'fast_food': { emoji: '🍔', label: 'אוכל מהיר', color: '#FF9800' },
+    'bank': { emoji: '🏦', label: 'בנק', color: '#4CAF50' },
+    'fuel': { emoji: '⛽', label: 'תחנת דלק', color: '#EF5350' },
+    'pharmacy': { emoji: '💊', label: 'בית מרקחת', color: '#7E57C2' },
+    'supermarket': { emoji: '🛒', label: 'סופרמרקט', color: '#4CAF50' }
+  };
+  return map[type] || null;
+}
+
+function selectPlaceFromMap(name, lat, lng) {
+  selectedPlace = { lat: lat, lng: lng, name: name };
+  $('placeName').value = name;
+  map.closePopup();
+  toast('נבחר: ' + name);
+}
+
+// =====================================================
+// MEETUP FLOW
+// =====================================================
+function openTypeSheet() {
+  closeAllSheets();
+  selectedType = null;
+  $('typeSheet').classList.add('show');
+  document.querySelectorAll('.meetup-type').forEach((type, index) => {
+    type.classList.remove('show');
+    setTimeout(() => type.classList.add('show'), 100 + (index * 80));
+  });
+}
+
+function selectType(type) {
+  selectedType = type;
+  closeAllSheets();
+  setTimeout(() => openPlaceSheet(), 300);
+}
+
+function getTypeLabel(type) {
+  const labels = { 'social': 'מפגש חברתי', 'event': 'אירוע', 'group': 'קבוצה קבועה', 'religious': 'אירוע דתי', 'sport': 'ספורט', 'food': 'אוכל' };
+  return labels[type] || type;
+}
+
+function getTypeEmoji(type) {
+  const emojis = { 'social': '🎉', 'event': '🎂', 'group': '👥', 'religious': '🙏', 'sport': '⚽', 'food': '🍽️' };
+  return emojis[type] || '🎉';
+}
+
+function openPlaceSheet() {
+  closeAllSheets();
+  $('placeSheet').classList.add('show');
+}
+
+function goToTime() {
+  if (!selectedPlace && !$('placeName').value.trim()) {
+    toast('בחר מקום על המפה או הקלד שם');
+    return;
+  }
+  if ($('placeName').value.trim() && !selectedPlace) {
+    selectedPlace = { name: $('placeName').value.trim(), lat: ASHDOD_CENTER[0], lng: ASHDOD_CENTER[1] };
+  }
+  openTimeSheet();
+}
+
+function openTimeSheet() {
+  closeAllSheets();
+  $('timeSheet').classList.add('show');
+}
+
+function selectTime(btn, time) {
+  document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedTime = time;
+}
+
+function goToPrivacy() { openPrivacySheet(); }
+
+function openPrivacySheet() {
+  closeAllSheets();
+  $('privacySheet').classList.add('show');
+}
+
+function selectPrivacy(btn, privacy) {
+  document.querySelectorAll('.privacy-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedPrivacy = privacy;
+}
+
+function goToPeople() { openPeopleSheet(); }
+
+function openPeopleSheet() {
+  closeAllSheets();
+  renderPeopleSelectList();
+  $('peopleSheet').classList.add('show');
+}
+
+function renderPeopleSelectList() {
+  const grid = $('peopleGridSelect');
+  if (friends.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#6B7A90;font-size:13px;padding:20px;">אין חברים. הוסף חברים במסך "חברים"</div>';
+    return;
+  }
+  grid.innerHTML = friends.map(p => `
+    <div class="person-select-card" onclick="togglePerson('${p.id}')" id="person-${p.id}">
+      <div class="person-select-avatar" ${p.photo ? `style="background-image:url(${p.photo})"` : ''}>${p.photo ? '' : p.emoji}</div>
+      <div class="person-select-name">${p.name}</div>
+      <div class="person-check">✓</div>
+    </div>
+  `).join('');
+}
+
+function togglePerson(id) {
+  const card = $(`person-${id}`);
+  if (selectedPeople.includes(id)) {
+    selectedPeople = selectedPeople.filter(x => x !== id);
+    card.classList.remove('selected');
+  } else {
+    selectedPeople.push(id);
+    card.classList.add('selected');
+  }
+}
+
+async function sendInvite() {
+  playLoudNotification();
+  if (!selectedPlace) { toast('חסר מקום'); return; }
+  if (!selectedTime) { toast('חסר זמן'); return; }
+
+  const expiryMs = EXPIRY_TIMES[selectedTime] || 2 * 60 * 60 * 1000;
+  const placeData = {
+    lat: selectedPlace.lat || ASHDOD_CENTER[0],
+    lng: selectedPlace.lng || ASHDOD_CENTER[1],
+    name: selectedPlace.name || 'מפגש'
+  };
+
+  const meetup = {
+    place: placeData,
+    time: selectedTime,
+    type: selectedType,
+    privacy: selectedPrivacy,
+    people: selectedPeople.slice(),
+    host: user ? user.name : 'אנונימי',
+    hostId: user ? (user.id || user.name) : 'anon',
+    expiresAt: Date.now() + expiryMs
+  };
+
+  const newId = await saveMeetupToCloud(meetup);
+  if (!newId) { toast('❌ שגיאה בשמירה'); return; }
+
+  await loadMeetups();
+  renderMeetups();
+
+  if (window.tempMarker) {
+    map.removeLayer(window.tempMarker);
+    window.tempMarker = null;
+  }
+  closeAllSheets();
+  toast('🎉 ההזמנה נשלחה!');
+
+  selectedPlace = null;
+  selectedPeople = [];
+  selectedType = null;
+  selectedPrivacy = 'private';
+  $('placeName').value = '';
+
+  setTimeout(() => showArrivalPopup(), 800);
+}
+
+// =====================================================
+// ARRIVAL POPUP
+// =====================================================
+function showArrivalPopup() { $('arrivalPopup').classList.add('show'); }
+function hideArrivalPopup() { $('arrivalPopup').classList.remove('show'); }
+function bubbleAction(action) {
+  hideArrivalPopup();
+  if (action === 'close') return;
+  if (action === 'park') parkHere();
+  else if (action === 'timer') openParkingPopup();
+}
+
+// =====================================================
+// CAR
+// =====================================================
+function parkHere() {
+  if (!userMarker) { toast('אין מיקום'); return; }
+  const latlng = userMarker.getLatLng();
+  const car = {
+    lat: latlng.lat,
+    lng: latlng.lng,
+    time: new Date().toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+  };
+  localStorage.setItem(CAR_KEY, JSON.stringify(car));
+  renderCarMarker(car);
+  toast('✅ המיקום נשמר!');
+  closeSidebar();
+}
+
+function findMyCar() {
+  const saved = localStorage.getItem(CAR_KEY);
+  if (!saved) {
+    toast('עוד לא סימנת איפה חנית');
+    setTimeout(() => { if (confirm('לסמן את מיקום הרכב עכשיו?')) parkHere(); }, 500);
+    return;
+  }
+  const car = JSON.parse(saved);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelector('.nav-item[data-screen="map"]').classList.add('active');
+  map.setView([car.lat, car.lng], 17, { animate: true });
+  if (carMarker) setTimeout(() => carMarker.openPopup(), 500);
+  if (userMarker) {
+    const userLatLng = userMarker.getLatLng();
+    const dist = Math.sqrt(Math.pow(car.lat - userLatLng.lat, 2) + Math.pow(car.lng - userLatLng.lng, 2)) * 111000;
+    toast(`הרכב במרחק ${Math.round(dist)} מטר`);
+  } else { toast('הרכב מסומן במפה'); }
+  closeSidebar();
+}
+
+function loadCarFromStorage() {
+  const saved = localStorage.getItem(CAR_KEY);
+  if (!saved) return;
+  try { const car = JSON.parse(saved); renderCarMarker(car); } catch(e) {}
+}
+
+function renderCarMarker(car) {
+  if (carMarker && map) map.removeLayer(carMarker);
+  const icon = L.divIcon({
+    className: '',
+    html: '<div style="width:36px;height:36px;border-radius:50%;background:#ffb020;display:flex;align-items:center;justify-content:center;font-size:20px;border:3px solid white;box-shadow:0 4px 16px rgba(255,176,32,0.6);">🚗</div>',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18]
+  });
+  carMarker = L.marker([car.lat, car.lng], { icon }).addTo(map);
+  carMarker.bindPopup(`
+    <div style="font-family: system-ui; text-align: right; direction: rtl; min-width: 180px;">
+      <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">🚗 הרכב שלי</div>
+      <div style="font-size: 12px; color: #666; margin-bottom: 10px;">${car.time}</div>
+      <button onclick="deleteMyCar()" style="width:100%;padding:10px;border-radius:10px;border:none;background:#00e5a0;color:#0a1628;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;">✅ מצאתי — מחק</button>
+    </div>
+  `);
+}
+
+window.deleteMyCar = function() {
+  localStorage.removeItem(CAR_KEY);
+  if (carMarker && map) { map.removeLayer(carMarker); carMarker = null; }
+  if (map) map.closePopup();
+  toast('✅ הסימון נמחק');
+};
+
+// =====================================================
+// PARKING
+// =====================================================
+function openParkingPopup() {
+  closeSidebar();
+  selectedParkingTime = null;
+  document.querySelectorAll('.parking-btn').forEach(b => b.classList.remove('selected'));
+  $('parkingPopup').classList.add('show');
+}
+function closeParkingPopup() { $('parkingPopup').classList.remove('show'); }
+function selectParkingTime(btn, minutes) {
+  document.querySelectorAll('.parking-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedParkingTime = minutes;
+}
+function confirmParkingTime() {
+  if (!selectedParkingTime) { toast('בחר זמן'); return; }
+  const endTime = Date.now() + selectedParkingTime * 60 * 1000;
+  localStorage.setItem(PARKING_KEY, JSON.stringify({ endTime, minutes: selectedParkingTime }));
+  updateParkingUI();
+  closeParkingPopup();
+  toast(`⏰ תזכורת נקבעה ל-${selectedParkingTime} דקות`);
+  if (navigator.vibrate) navigator.vibrate(50);
+}
+function updateParkingUI() {
+  const data = localStorage.getItem(PARKING_KEY);
+  const btn = $('sidebarParkingBtn');
+  const timer = $('sidebarParkingTimer');
+  if (!data) {
+    if (btn) btn.classList.remove('parking-active');
+    if (timer) timer.style.display = 'none';
+    return;
+  }
+  const { endTime } = JSON.parse(data);
+  const remaining = endTime - Date.now();
+  if (remaining <= 0) { triggerParkingAlert(); return; }
+  if (btn) btn.classList.add('parking-active');
+  if (timer) {
+    timer.style.display = 'block';
+    const min = Math.floor(remaining / 60000);
+    const sec = Math.floor((remaining % 60000) / 1000);
+    timer.textContent = `נותרו ${min}:${String(sec).padStart(2,'0')}`;
+  }
+}
+function triggerParkingAlert() {
+  localStorage.removeItem(PARKING_KEY);
+  updateParkingUI();
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 800; gain.gain.value = 0.3;
+    osc.start(); setTimeout(() => { osc.stop(); ctx.close(); }, 500);
+  } catch(e) {}
+  alert('⏰ הזמן נגמר! כדאי לחזור לרכב.');
+}
+setInterval(updateParkingUI, 1000);
+
+// =====================================================
+// ORGANIZER
+// =====================================================
+function openOrganizer() {
+  closeSidebar();
+  renderOrganizer();
+  $('organizerScreen').classList.add('show');
+}
+function closeOrganizer() { $('organizerScreen').classList.remove('show'); }
+
+function renderOrganizer() {
+  const content = $('organizerContent');
+  let html = '';
+  Object.keys(ORGANIZER_CATEGORIES).forEach(key => {
+    const cat = ORGANIZER_CATEGORIES[key];
+    const categoryItems = organizerItems.filter(i => i.category === key);
+    html += `<div class="organizer-category"><div class="organizer-category-title">${cat.title}</div>`;
+    cat.items.forEach(itemText => {
+      const itemId = key + '_' + itemText;
+      const item = organizerItems.find(i => i.id === itemId);
+      const isDone = item ? item.done : false;
+      html += `<div class="organizer-item ${isDone ? 'done' : ''}" onclick="toggleOrganizerItem('${itemId}', '${key}', '${itemText}')">
+        <div class="organizer-check">${isDone ? '✓' : ''}</div>
+        <div class="organizer-item-text">${itemText}</div>
+      </div>`;
+    });
+    categoryItems.filter(i => i.custom).forEach(item => {
+      html += `<div class="organizer-item ${item.done ? 'done' : ''}" onclick="toggleCustomItem('${item.id}')">
+        <div class="organizer-check">${item.done ? '✓' : ''}</div>
+        <div class="organizer-item-text">${item.text}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  content.innerHTML = html;
+}
+
+function toggleOrganizerItem(itemId, category, text) {
+  let item = organizerItems.find(i => i.id === itemId);
+  if (!item) {
+    item = { id: itemId, category, text, done: false, custom: false };
+    organizerItems.push(item);
+  } else item.done = !item.done;
+  saveOrganizer();
+  renderOrganizer();
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+
+function toggleCustomItem(itemId) {
+  const item = organizerItems.find(i => i.id === itemId);
+  if (!item) return;
+  item.done = !item.done;
+  saveOrganizer();
+  renderOrganizer();
+}
+
+function addOrganizerItem() {
+  const text = prompt('מה להוסיף?');
+  if (!text || text.trim().length < 2) return;
+  const item = { id: 'custom_' + Date.now(), category: 'custom', text: text.trim(), done: false, custom: true };
+  organizerItems.push(item);
+  saveOrganizer();
+  renderOrganizer();
+  toast('נוסף');
+}
+
+// =====================================================
+// FRIENDS UI
+// =====================================================
+function openFriends() {
+  closeAllSheets();
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.nav-item[data-screen="friends"]').classList.add('active');
+  renderFriends();
+  $('friendsScreen').classList.add('show');
+}
+function closeFriends() { $('friendsScreen').classList.remove('show'); }
+
+function renderFriends() {
+  const grid = $('friendsGrid');
+  if (!grid) return;
+  const search = ($('friendsSearch')?.value || '').toLowerCase();
+  const filtered = friends.filter(f => f.name.toLowerCase().includes(search));
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-state-icon">👥</div>אין חברים להצגה.</div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(p => {
+    const avatar = p.photo
+      ? `<div class="friend-avatar" style="background-image:url(${p.photo})"><div class="friend-status"></div></div>`
+      : `<div class="friend-avatar">${p.emoji || p.name.charAt(0)}<div class="friend-status"></div></div>`;
+    return `<div class="friend-card" onclick="openFriendDetail('${p.id}')">${avatar}<div class="friend-name">${p.name}</div></div>`;
+  }).join('');
+}
+
+async function openAddFriend() {
+  const name = prompt('שם החבר?');
+  if (!name || name.trim().length < 2) return;
+  const newFriend = await addFriendToCloud(name.trim());
+  if (!newFriend) { toast('❌ שגיאה'); return; }
+  friends.push(newFriend);
+  renderFriends();
+  toast('החבר נוסף');
+}
+
+function openFriendDetail(id) {
+  currentFriendId = id;
+  const friend = friends.find(f => f.id === id);
+  if (!friend) return;
+  $('friendDetailName').textContent = friend.name;
+  const avatar = $('friendDetailAvatar');
+  if (friend.photo) {
+    avatar.style.backgroundImage = `url(${friend.photo})`;
+    avatar.textContent = '';
+  } else {
+    avatar.style.backgroundImage = '';
+    avatar.textContent = friend.emoji || friend.name.charAt(0);
+  }
+  $('friendBirthday').value = friend.birthday || '';
+  $('friendAnniversary').value = friend.anniversary || '';
+  $('friendNotes').value = friend.notes || '';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  $('friendDetailScreen').classList.add('show');
+}
+
+function closeFriendDetail() { $('friendDetailScreen').classList.remove('show'); }
+
+async function saveFriendDetails() {
+  const friend = friends.find(f => f.id === currentFriendId);
+  if (!friend) return;
+  friend.birthday = $('friendBirthday').value;
+  friend.anniversary = $('friendAnniversary').value;
+  friend.notes = $('friendNotes').value;
+  await updateFriendInCloud(friend);
+  toast('נשמר ✓');
+}
+
+async function deleteFriend() {
+  if (!confirm('למחוק את החבר?')) return;
+  const id = currentFriendId;
+  friends = friends.filter(f => f.id !== id);
+  closeFriendDetail();
+  renderFriends();
+  toast('החבר נמחק');
+  await deleteFriendFromCloud(id);
+}
+
+// =====================================================
+// MEETUPS RENDER
+// =====================================================
+function renderMeetups() {
+  Object.values(meetupMarkers).forEach(m => { if (map) map.removeLayer(m); });
+  meetupMarkers = {};
+  const now = Date.now();
+  const userId = user ? (user.id || user.name) : 'anon';
+
+  meetups.forEach(meetup => {
+    if (meetup.expiresAt && meetup.expiresAt < now) return;
+    const lat = meetup.place.lat || ASHDOD_CENTER[0];
+    const lng = meetup.place.lng || ASHDOD_CENTER[1];
+    const emoji = getTypeEmoji(meetup.type);
+    const privacyIcon = meetup.privacy === 'public' ? '🌍' : '🔒';
+    const isHost = meetup.hostId === userId;
+    const isAttending = meetup.attendees && meetup.attendees.find(a => a.id === userId);
+    const bgColor = meetup.privacy === 'public' ? '#26A69A' : '#1E88E5';
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:46px;height:46px;border-radius:50%;background:${bgColor};display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid white;box-shadow:0 4px 16px rgba(30,136,229,0.5);position:relative;">${emoji}<span style="position:absolute;top:-4px;left:-4px;font-size:14px;">${privacyIcon}</span></div>`,
+      iconSize: [46, 46],
+      iconAnchor: [23, 23]
+    });
+
+    const marker = L.marker([lat, lng], { icon }).addTo(map);
+    marker.bindPopup(buildMeetupPopup(meetup, isHost, isAttending));
+    meetupMarkers[meetup.id] = marker;
+  });
+
+  renderMyMeetupsList();
+}
+
+function buildMeetupPopup(meetup, isHost, isAttending) {
+  const attendees = meetup.attendees || [];
+  const list = attendees.length > 0
+    ? attendees.map(a => `• ${a.name} ✅`).join('<br>')
+    : 'אין עדיין אישורים';
+
+  let actionBtn = '';
+  if (isHost) {
+    actionBtn = `<button onclick="joinMeetup('${meetup.id}')" style="width:100%;padding:10px;border-radius:8px;border:none;background:#4CAF50;color:white;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;">✅ אני מגיע!</button>
+      <button onclick="deleteMeetup('${meetup.id}')" style="width:100%;padding:10px;border-radius:8px;border:none;background:#EF5350;color:white;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;">🗑️ מחק מפגש</button>`;
+  } else if (isAttending) {
+    actionBtn = `<button onclick="cancelJoin('${meetup.id}')" style="width:100%;padding:10px;border-radius:8px;border:none;background:#546E7A;color:white;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;">✕ בטל הגעה</button>`;
+  } else {
+    actionBtn = `<button onclick="joinMeetup('${meetup.id}')" style="width:100%;padding:10px;border-radius:8px;border:none;background:#4CAF50;color:white;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;">✅ אני מגיע!</button>`;
+  }
+
+  return `<div class="place-popup">
+    <div class="place-popup-name">${meetup.place.name || 'מפגש'}</div>
+    <div class="place-popup-type">${getTypeLabel(meetup.type)} • ${meetup.time}</div>
+    <div style="margin-top:8px;font-size:12px;color:#6B7A90;">מארגן: ${meetup.host}</div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E4E9F0;font-size:12px;color:#6B7A90;"><strong>מי מגיע (${attendees.length}):</strong><br>${list}</div>
+    <div style="margin-top:10px;">${actionBtn}</div>
+  </div>`;
+}
+
+async function joinMeetup(meetupId) {
+  const meetup = meetups.find(m => m.id === meetupId);
+  if (!meetup) return;
+  const userId = user ? (user.id || user.name) : 'anon';
+  const userName = user ? user.name : 'אנונימי';
+  if (meetup.attendees && meetup.attendees.find(a => a.id === userId)) {
+    toast('כבר אישרת הגעה'); return;
+  }
+  const ok = await joinMeetupInCloud(meetupId, userId, userName);
+  if (ok) {
+    await loadMeetups();
+    renderMeetups();
+    playLoudNotification();
+    toast('✅ אישרת הגעה!');
+    setTimeout(() => showArrivalPopup(), 800);
+  } else toast('❌ שגיאה');
+}
+
+async function cancelJoin(meetupId) {
+  const userId = user ? (user.id || user.name) : 'anon';
+  await cancelJoinInCloud(meetupId, userId);
+  await loadMeetups();
+  renderMeetups();
+  toast('ביטלת הגעה');
+}
+
+function renderMyMeetupsList() {
+  const list = $('myMeetupsList');
+  if (!list) return;
+  const now = Date.now();
+  const userId = user ? (user.id || user.name) : 'anon';
+  const search = ($('meetupsSearch')?.value || '').toLowerCase();
+
+  let filtered = meetups.filter(m => !m.expiresAt || m.expiresAt > now);
+  if (search) filtered = filtered.filter(m => (m.place.name || '').toLowerCase().includes(search));
+  if (meetupFilter === 'hosting') filtered = filtered.filter(m => m.hostId === userId);
+  else if (meetupFilter === 'attending') filtered = filtered.filter(m => m.attendees && m.attendees.find(a => a.id === userId));
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📅</div>אין מפגשים להצגה.</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(meetup => {
+    const timeLeft = getTimeLeft(meetup.expiresAt);
+    const privacyIcon = meetup.privacy === 'public' ? '🌍' : '🔒';
+    const count = meetup.attendees ? meetup.attendees.length : 0;
+    return `<div class="meetup-item">
+      <div class="meetup-item-header">
+        <div class="meetup-item-icon">${getTypeEmoji(meetup.type)}</div>
+        <div class="meetup-item-info">
+          <div class="meetup-item-place">${privacyIcon} ${meetup.place.name || 'מפגש'}</div>
+          <div class="meetup-item-time">${getTypeLabel(meetup.type)} • ${meetup.time} • ⏰ ${timeLeft}</div>
+        </div>
+      </div>
+      <div class="meetup-item-footer">
+        <div class="meetup-item-count">✅ ${count} מגיעים</div>
+        <button class="meetup-item-btn delete" onclick="deleteMeetup('${meetup.id}')">🗑️ מחק</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setFilter(btn, filter) {
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  meetupFilter = filter;
+  renderMyMeetupsList();
+}
+
+function getTimeLeft(expiresAt) {
+  if (!expiresAt) return 'ללא הגבלה';
+  const diff = expiresAt - Date.now();
+  if (diff <= 0) return 'פג תוקף';
+  const hours = Math.floor(diff / (60 * 60 * 1000));
+  const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+  if (hours > 0) return `${hours}ש ${minutes}ד`;
+  return `${minutes}ד`;
+}
+
+async function deleteMeetup(id) {
+  if (!confirm('למחוק את המפגש?')) return;
+  if (meetupMarkers[id]) { if (map) map.removeLayer(meetupMarkers[id]); delete meetupMarkers[id]; }
+  await deleteMeetupFromCloud(id);
+  await loadMeetups();
+  renderMeetups();
+  toast('המפגש נמחק');
+}
+
+async function clearAllMeetups() {
+  if (!confirm('למחוק את כל המפגשים שלך?')) return;
+  const userId = user ? (user.id || user.name) : 'anon';
+  for (const m of meetups) {
+    if (m.hostId === userId) await deleteMeetupFromCloud(m.id);
+  }
+  await loadMeetups();
+  Object.values(meetupMarkers).forEach(m => { if (map) map.removeLayer(m); });
+  meetupMarkers = {};
+  renderMeetups();
+  toast('המפגשים שלך נמחקו');
+}
+
+// =====================================================
+// NAVIGATION
+// =====================================================
+function closeAllSheets() {
+  document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('show'));
+}
+
+function goToMap() {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.nav-item[data-screen="map"]').classList.add('active');
+  closeFriends(); closeMyMeetups(); closeProfile(); closeFriendDetail();
+}
+
+function openMyMeetups() {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.nav-item[data-screen="myMeetups"]').classList.add('active');
+  renderMyMeetupsList();
+  $('myMeetupsScreen').classList.add('show');
+}
+function closeMyMeetups() { $('myMeetupsScreen').classList.remove('show'); }
+
+function openProfile() {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.nav-item[data-screen="profile"]').classList.add('active');
+  updateProfile();
+  $('profileScreen').classList.add('show');
+}
+function closeProfile() { $('profileScreen').classList.remove('show'); }
+
+function updateProfile() {
+  if (!user) return;
+  $('profileNameBig').textContent = user.name;
+  const bigAvatar = $('profileAvatarBig');
+  if (user.photo) {
+    bigAvatar.style.backgroundImage = `url(${user.photo})`;
+    bigAvatar.textContent = '';
+  } else {
+    bigAvatar.textContent = user.name.charAt(0).toUpperCase();
+    bigAvatar.style.backgroundImage = '';
+  }
+}
+
+$('sidebarToggle').addEventListener('click', () => {
+  $('sidebar').classList.add('show');
+  $('sidebarBg').classList.add('show');
+});
+function closeSidebar() {
+  $('sidebar').classList.remove('show');
+  $('sidebarBg').classList.remove('show');
+}
+
+function openSettings() {
+  closeSidebar();
+  $('currentName').textContent = user ? user.name : '-';
+  $('soundStatus').textContent = soundEnabled ? 'פעיל' : 'כבוי';
+  $('settingsScreen').classList.add('show');
+}
+function closeSettings() { $('settingsScreen').classList.remove('show'); }
+
+async function editName() {
+  const newName = prompt('השם החדש:', user ? user.name : '');
+  if (newName && newName.trim().length >= 2) {
+    user.name = newName.trim();
+    saveUser();
+    await syncProfileToCloud();
+    $('currentName').textContent = user.name;
+    updateProfile();
+    toast('השם עודכן');
+  }
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  saveSoundSettings();
+  $('soundStatus').textContent = soundEnabled ? 'פעיל' : 'כבוי';
+  toast(soundEnabled ? '🔊 צליל פעיל' : '🔇 צליל כבוי');
+  if (soundEnabled) playLoudNotification();
+}
+
+function clearData() {
+  if (confirm('למחוק את כל הנתונים המקומיים? (המפגשים בענן יישארו)')) {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SOUND_KEY);
+    localStorage.removeItem(CAR_KEY);
+    localStorage.removeItem(PARKING_KEY);
+    localStorage.removeItem(ORGANIZER_KEY);
+    location.reload();
+  }
+}
+
+function openAbout() { closeSidebar(); $('aboutScreen').classList.add('show'); }
+function closeAbout() { $('aboutScreen').classList.remove('show'); }
+
+function shareApp() {
+  closeSidebar();
+  const url = window.location.href;
+  const text = '🎉 נפגשים — כלי לתיאום מפגשים חברתיים. בוחרים מקום, קובעים זמן, ומזמינים חברים!';
+  if (navigator.share) {
+    navigator.share({ title: 'נפגשים', text, url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text + ' ' + url).then(() => toast('הקישור הועתק!')).catch(() => prompt('העתק:', url));
+  }
+}
+
+console.log('🎉 נפגשים 3.1.0 עם Supabase נטענה בהצלחה!');
+</script>
+</body>
+</html>
